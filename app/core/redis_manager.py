@@ -2,16 +2,19 @@ import redis
 from typing import Dict, List, Optional, Any
 from .consistent_hash import ConsistentHash
 from .config import settings
+import os
 
 class RedisManager:
     def __init__(self):
         """Initialize Redis connection pools and consistent hashing"""
-        self.connection_pools: Dict[str, redis.ConnectionPool] = {}
-        self.redis_clients: Dict[str, redis.Redis] = {}
+        # self.connection_pools: Dict[str, redis.ConnectionPool] = {}
+        # self.redis_clients: Dict[str, redis.Redis] = {}
+        redisUrl = os.getenv('REDIS_NODES').split(',')[0]
+        self.connection_pool = redis.ConnectionPool.from_url(redisUrl)
         
         # Parse Redis nodes from comma-separated string
-        redis_nodes = [node.strip() for node in settings.REDIS_NODES.split(",") if node.strip()]
-        self.consistent_hash = ConsistentHash(redis_nodes, settings.VIRTUAL_NODES)
+        # redis_nodes = [node.strip() for node in settings.REDIS_NODES.split(",") if node.strip()]
+        # self.consistent_hash = ConsistentHash(redis_nodes, settings.VIRTUAL_NODES)
         
         # TODO: Initialize connection pools for each Redis node
         # 1. Create connection pools for each Redis node
@@ -28,6 +31,8 @@ class RedisManager:
         Returns:
             Redis client for the appropriate node
         """
+        redis_client = redis.Redis(connection_pool=self.connection_pool)
+        return redis_client
         # TODO: Implement getting the appropriate Redis connection
         # 1. Use consistent hashing to determine which node should handle this key
         # 2. Return the Redis client for that node
@@ -48,7 +53,8 @@ class RedisManager:
         # 1. Get the appropriate Redis connection
         # 2. Increment the counter
         # 3. Handle potential failures and retries
-        return 0
+        redis_client = await self.get_connection(key)
+        return redis_client.incr(key, amount)
 
     async def get(self, key: str) -> Optional[int]:
         """
@@ -64,4 +70,6 @@ class RedisManager:
         # 1. Get the appropriate Redis connection
         # 2. Retrieve the value
         # 3. Handle potential failures and retries
-        return None
+        redis_client = await self.get_connection(key)
+        value = redis_client.get(key)
+        return value if value else 0

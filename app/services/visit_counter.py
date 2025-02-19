@@ -5,8 +5,8 @@ from ..core.redis_manager import RedisManager
 from collections import defaultdict
 
 class VisitCounterService:
-    visitCounter = defaultdict(int)
-    visitCounterLocks = defaultdict(asyncio.Lock)
+    # visitCounter = defaultdict(int)
+    # visitCounterLocks = defaultdict(asyncio.Lock)
     def __init__(self):
         """Initialize the visit counter service with Redis manager"""
         self.redis_manager = RedisManager()
@@ -18,8 +18,9 @@ class VisitCounterService:
         Args:
             page_id: Unique identifier for the page
         """
-        async with VisitCounterService.visitCounterLocks[page_id]:
-            VisitCounterService.visitCounter[page_id] += 1
+        # async with VisitCounterService.visitCounterLocks[page_id]:
+        #     VisitCounterService.visitCounter[page_id] += 1
+        await self.redis_manager.increment(page_id,1)
         # TODO: Implement visit count increment
         pass
 
@@ -33,7 +34,9 @@ class VisitCounterService:
         Returns:
             Current visit count
         """
-        async with VisitCounterService.visitCounterLocks[page_id]:
-            return VisitCounterService.visitCounter[page_id]
+        # async with VisitCounterService.visitCounterLocks[page_id]:
+        #     return VisitCounterService.visitCounter[page_id]
+
+        counts = await self.redis_manager.get(page_id)
         # TODO: Implement getting visit count
-        return 0
+        return counts
