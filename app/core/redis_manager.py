@@ -72,4 +72,4 @@ class RedisManager:
         # 3. Handle potential failures and retries
         redis_client = await self.get_connection(key)
         value = redis_client.get(key)
-        return value if value else 0
+        return int(value) if value else 0
