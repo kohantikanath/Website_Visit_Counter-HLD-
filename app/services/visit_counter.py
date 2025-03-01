@@ -1,5 +1,4 @@
- 
-from typing import Dict, List, Any
+from typing import Dict, List, Tuple, Any
 import asyncio
 from datetime import datetime, timedelta
 from ..core.redis_manager import RedisManager
@@ -7,7 +6,7 @@ from collections import defaultdict
  
 class VisitCounterService:
  
-    CACHE_TTL = 50
+    CACHE_TTL = 5
     BUFFER_FLUSH_INTERVAL = 30
  
     def __init__(self, redis_manager: RedisManager):
@@ -62,7 +61,7 @@ class VisitCounterService:
         async with self.buffer_locks[page_id]:
             self.write_buffer[page_id] += 1
  
-    async def get_visit_count(self, page_id: str) -> int:
+    async def get_visit_count(self, page_id: str) -> Tuple[int, str]:
         """
         Get current visit count for a page
         
@@ -74,12 +73,15 @@ class VisitCounterService:
         """
  
         visit_count = 0
+        served_via = ""
  
         if self._cache_validity_check(page_id):
             # using in-memory cache
+ 
             async with self.cache_locks[page_id]:
                 visit_count = self.visit_count_cache[page_id]["count"]
-        
+                served_via = "in-memory"
+ 
         else:
             # flushing the data to redis before fetching the data
             await self.flush_buffer_key(page_id)
@@ -88,8 +90,8 @@ class VisitCounterService:
             visit_count = await self.redis_manager.get(page_id)
             if visit_count is None:
                 visit_count = 0
-            # elif isinstance(visit_count, bytes):  
-            #     visit_count = int(visit_count.decode()) 
+            served_via = self.redis_manager.get_redis_node_from_key(page_id)
+            served_via = f"redis_{served_via.split(':')[-1]}"
  
             # update in-memory cache
             async with self.cache_locks[page_id]:
@@ -101,4 +103,5 @@ class VisitCounterService:
         async with self.buffer_locks[page_id]:
             visit_count += self.write_buffer[page_id]
  
-        return visit_count 
+        return visit_count, served_via
+ 

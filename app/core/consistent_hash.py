@@ -1,60 +1,60 @@
 import hashlib
-from typing import List, Dict, Any
-from bisect import bisect
+from bisect import insort_left, bisect_left
+from typing import List, Dict
 
 class ConsistentHash:
-    def __init__(self, nodes: List[str], virtual_nodes: int = 100):
-        """
-        Initialize the consistent hash ring
-        
-        Args:
-            nodes: List of node identifiers (parsed from comma-separated string)
-            virtual_nodes: Number of virtual nodes per physical node
-        """
-        
-        # TODO: Initialize the hash ring with virtual nodes
-        # 1. For each physical node, create virtual_nodes number of virtual nodes
-        # 2. Calculate hash for each virtual node and map it to the physical node
-        # 3. Store the mapping in hash_ring and maintain sorted_keys
-        pass
+    def __init__(self, nodes: List[str] = [], virtual_nodes: int = 100):
+        self.virtual_nodes = virtual_nodes
+        self.hash_ring: Dict[int, str] = {}  # Map hash -> node
+        self.sorted_keys: List[int] = []  # Sorted hash values (kept sorted)
+
+        # Add all initial nodes
+        for node in nodes:
+            self.add_node(node)
+
+    def _hash(self, key: str) -> int:
+        """Generate a consistent hash for a given key."""
+        return int(hashlib.sha256(key.encode()).hexdigest(), 16) % (2**32)
 
     def add_node(self, node: str) -> None:
         """
-        Add a new node to the hash ring
-        
-        Args:
-            node: Node identifier to add
+        Add a new node in O(N) using binary insertion.
+        - Generates virtual nodes.
+        - Finds insertion index using `bisect.insort_left()`.
+        - Updates `hash_ring` mapping.
         """
-        # TODO: Implement adding a new node
-        # 1. Create virtual nodes for the new physical node
-        # 2. Update hash_ring and sorted_keys
-        pass
+        for i in range(self.virtual_nodes):
+            key = f"{node}-{i}"
+            hash_value = self._hash(key)
+
+            if hash_value in self.hash_ring:
+                continue  # Avoid duplicate keys
+
+            # Insert into sorted_keys in the correct position
+            insort_left(self.sorted_keys, hash_value)
+
+            # Update hash ring with the new virtual node mapping
+            self.hash_ring[hash_value] = node
 
     def remove_node(self, node: str) -> None:
-        """
-        Remove a node from the hash ring
-        
-        Args:
-            node: Node identifier to remove
-        """
-        # TODO: Implement removing a node
-        # 1. Remove all virtual nodes for the given physical node
-        # 2. Update hash_ring and sorted_keys
-        pass
+        """Remove a node and its virtual nodes in O(N)."""
+        remove_keys = [h for h, n in self.hash_ring.items() if n == node]
+
+        for key in remove_keys:
+            del self.hash_ring[key]
+
+        # Remove keys in O(N) without re-sorting
+        self.sorted_keys = [h for h in self.sorted_keys if h not in remove_keys]
 
     def get_node(self, key: str) -> str:
-        """
-        Get the node responsible for the given key
-        
-        Args:
-            key: The key to look up
-            
-        Returns:
-            The node responsible for the key
-        """
-        # TODO: Implement node lookup
-        # 1. Calculate hash of the key
-        # 2. Find the first node in the ring that comes after the key's hash
-        # 3. If no such node exists, wrap around to the first node
-        return ""
-    
+        """Get the node responsible for a given key using binary search (O(log N))."""
+        if not self.sorted_keys:
+            return None  # No nodes available
+
+        hash_value = self._hash(key)
+        idx = bisect_left(self.sorted_keys, hash_value)
+
+        if idx == len(self.sorted_keys):  # Wrap around
+            idx = 0
+
+        return self.hash_ring[self.sorted_keys[idx]]
